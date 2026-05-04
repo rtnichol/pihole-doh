@@ -1,0 +1,134 @@
+##############################################
+# dnscrypt-proxy configuration
+# DoH + Anonymized DNSCrypt for Pi-hole
+##############################################
+
+# Listen on all interfaces inside the container on port 5300
+listen_addresses = ['0.0.0.0:5300']
+
+# Maximum number of simultaneous client connections
+max_clients = 250
+
+# Enable both DoH and DNSCrypt protocol servers
+doh_servers    = true
+dnscrypt_servers = true
+# Disable plain DNS and oblivious DoH (not needed here)
+odoh_servers   = false
+
+# Only use servers that support DNS security extensions
+require_dnssec = false   # set true if you want to enforce DNSSEC at this layer
+require_nolog  = true    # only use no-logging servers
+require_nofilter = true  # only use non-filtering servers (Pi-hole handles filtering)
+
+# Resolve IPv4 and IPv6
+ipv4_servers = true
+ipv6_servers = false     # set true if your LAN uses IPv6
+
+# Prefer servers with lowest latency
+lb_strategy = "p2"       # pick from 2 fastest servers at random
+lb_estimator = true
+
+# Cache DNS responses locally to reduce latency
+cache = true
+cache_size = 4096
+cache_min_ttl = 2400
+cache_max_ttl = 86400
+cache_neg_min_ttl = 60
+cache_neg_max_ttl = 600
+
+# Block IPv6 when ipv6_servers = false (returns NODATA instead of SERVFAIL)
+block_ipv6 = false
+
+# Log level: 0=debug 1=info 2=warn 3=err 4=crit 5=fatal 6=none
+log_level = 2
+
+# HTTP/2 keepalive for DoH connections (seconds)
+http3 = false            # set true to try HTTP/3 (QUIC) for DoH — experimental
+
+
+##############################################
+# Anonymized DNS (DNSCrypt relays)
+# Hides your IP from the upstream resolver by
+# routing queries through an independent relay.
+# Only applies to DNSCrypt servers, not DoH.
+##############################################
+
+[anonymized_dns]
+  # Wildcard routes: automatically pick any compatible relay
+  # for any DNSCrypt server that supports anonymization.
+  routes = [
+    { server_name = "*", via = ["*"] }
+  ]
+
+  # Skip servers that don't support anonymized routing
+  # instead of falling back to direct connections
+  skip_incompatible = true
+
+
+##############################################
+# Server sources
+# dnscrypt-proxy fetches and caches these lists.
+# The public-resolvers list includes both DoH
+# and DNSCrypt servers; relays list is for
+# anonymized DNS routing.
+##############################################
+
+[sources]
+  [sources.public-resolvers]
+    urls = [
+      "https://raw.githubusercontent.com/DNSCrypt/dnscrypt-resolvers/master/v3/public-resolvers.md",
+      "https://download.dnscrypt.info/resolvers-list/v3/public-resolvers.md"
+    ]
+    cache_file = "/config/public-resolvers.md"
+    minisign_key = "RWQf6LRCGA9i53mlYecO4IzT51TGPpvWucNSCh1CBM0QTaLn73Y7GFO3"
+    refresh_delay = 72
+    prefix = ""
+
+  [sources.relays]
+    urls = [
+      "https://raw.githubusercontent.com/DNSCrypt/dnscrypt-resolvers/master/v3/relays.md",
+      "https://download.dnscrypt.info/resolvers-list/v3/relays.md"
+    ]
+    cache_file = "/config/relays.md"
+    minisign_key = "RWQf6LRCGA9i53mlYecO4IzT51TGPpvWucNSCh1CBM0QTaLn73Y7GFO3"
+    refresh_delay = 72
+    prefix = ""
+
+
+##############################################
+# Optional: pin specific servers
+# Uncomment and edit to prefer certain resolvers
+# instead of auto-selecting from the full list.
+##############################################
+
+# server_names = [
+#   "cloudflare",        # DoH  — Cloudflare 1.1.1.1 (no-log, no-filter)
+#   "nextdns",           # DoH  — NextDNS
+#   "quad9-dnscrypt-ip4-filter-pri",  # DNSCrypt — Quad9 (with malware blocking)
+#   "scaleway-fr",       # DNSCrypt — supports anonymization
+# ]
+
+
+##############################################
+# Prometheus metrics endpoint (optional)
+# Exposes query stats at http://host:8053/metrics
+##############################################
+
+[metrics]
+  prefix = "dnscrypt_proxy"
+
+[http_proxy]
+  # leave blank unless you're behind an explicit proxy
+
+
+##############################################
+# Local DoH server
+# Allows local clients to talk DoH directly
+# to this dnscrypt-proxy instance (optional).
+##############################################
+
+# [local_doh]
+#   listen_addresses = ['127.0.0.1:3000']
+#   path = "/dns-query"
+#   cert_file = "localhost.pem"
+#   cert_key_file = "localhost_key.pem"

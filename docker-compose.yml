@@ -1,0 +1,56 @@
+services:
+  dnscrypt-proxy:
+    image: klutchell/dnscrypt-proxy:latest
+    container_name: dnscrypt-proxy
+    restart: unless-stopped
+    volumes:
+      - ./dnscrypt-proxy:/config
+    networks:
+      dns_net:
+        ipv4_address: 172.20.0.2
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8053/dnscrypt-proxy"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  pihole:
+    image: pihole/pihole:latest
+    container_name: pihole
+    restart: unless-stopped
+    ports:
+      - "53:53/tcp"
+      - "53:53/udp"
+      - "${PIHOLE_WEB_PORT:-8080}:80/tcp"
+    environment:
+      TZ: "${TZ:-America/New_York}"
+      WEBPASSWORD: "${PIHOLE_PASSWORD}"
+      # Point upstream DNS to dnscrypt-proxy
+      PIHOLE_DNS_: "172.20.0.2#5300"
+      # Disable Pi-hole's built-in DNSSEC — dnscrypt-proxy handles validation
+      DNSSEC: "false"
+      # Prevent Pi-hole from using its default upstream resolvers
+      DNS_BOGUS_PRIV: "true"
+      DNS_FQDN_REQUIRED: "true"
+    volumes:
+      - pihole_data:/etc/pihole
+      - dnsmasq_data:/etc/dnsmasq.d
+    networks:
+      dns_net:
+        ipv4_address: 172.20.0.3
+    depends_on:
+      dnscrypt-proxy:
+        condition: service_healthy
+    cap_add:
+      - NET_ADMIN
+
+networks:
+  dns_net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/24
+
+volumes:
+  pihole_data:
+  dnsmasq_data:
